@@ -1,0 +1,8 @@
+<html xmlns:th="http://www.w3.org/1999/xhtml">
+<body>
+<p th:each="file : ${files}">
+    <a th:text="${file}" th:href="'/video/' + ${file}">Onions</a>
+</p>
+</body>
+
+</html>
