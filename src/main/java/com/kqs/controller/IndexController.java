@@ -42,7 +42,7 @@ public class IndexController {
         List<String> fileList = new ArrayList<String>();
         File file = new File("/Volumes/UNTITLED/other");
         for (File f : file.listFiles()) {
-            if (f.getName().toLowerCase().endsWith(".mp4") && !f.getName().startsWith(".") && f.length() < 1024 * 1024 * 900) {
+            if (f.getName().toLowerCase().endsWith(".mp4") && !f.getName().startsWith(".")) {
                 fileList.add(f.getName().replace(".mp4", ""));
             }
         }

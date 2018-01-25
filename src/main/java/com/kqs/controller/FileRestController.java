@@ -1,6 +1,7 @@
 package com.kqs.controller;
 
 import com.alibaba.fastjson.JSON;
+import org.apache.commons.io.IOUtils;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
+import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,6 +27,8 @@ import java.util.List;
  */
 @RestController
 public class FileRestController {
+    private final int MAX_BYTES = 1024 * 2;
+
     @GetMapping("/api/files")
     public String listAllFiles() {
         List<String> fileList = new ArrayList<String>();
@@ -39,44 +43,38 @@ public class FileRestController {
     }
 
     @GetMapping("/api/files/{filename:.+}")
-    public ResponseEntity<Resource> getFile(@PathVariable String filename, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public void getFile(@PathVariable String filename, HttpServletRequest request, HttpServletResponse response) throws IOException {
         File file = new File("/Volumes/UNTITLED/other/"+ filename);
 
-        ByteArrayResource data;
-
-        HttpHeaders headers = new HttpHeaders();
-
-        headers.add("Content-Type", "video/mp4");
-        headers.add("Accept-Ranges", "bytes");
+        response.setHeader("Content-Type", "video/mp4");
+        response.setHeader("Accept-Ranges", "bytes");
         System.out.println(request.getHeader("range"));
         String range = request.getHeader("range");
         if ( range != null) {
             range = range.replace("bytes=", "");
-
-            Path path = Paths.get(file.getAbsolutePath());
-            if (range.split("-")[1].equals("")) {
-                byte[] fileBytes = Files.readAllBytes(path);
-                data = new ByteArrayResource(fileBytes);
-                headers.add("Content-Range", "bytes 0-");
-                headers.add("Content-Length", "" + file.length());
+            RandomAccessFile raf = new RandomAccessFile(file, "r");
+            int start = Integer.parseInt(range.split("-")[0]);
+            if (range.split("-").length < 2) {
+                response.setHeader("Content-Range", "bytes 0-");
+                response.setHeader("Content-Length", "" + file.length());
+                write(response, raf, start, file.length() - 1, true);
             } else {
-                int start = Integer.parseInt(range.split("-")[0]);
                 int end = Integer.parseInt(range.split("-")[1]);
                 int length = end - start + 1;
-                byte[] magic = new byte[length];
-                RandomAccessFile raf = new RandomAccessFile(file, "r");
-                raf.seek(start);
-                raf.read(magic, 0, length);
-                data = new ByteArrayResource(magic);
-                headers.add("Content-Range", String.format("bytes %s-%s/%s", start, end, file.length()));
-                headers.add("Content-Length", "" + length);
+                response.setHeader("Content-Range", String.format("bytes %s-%s/%s", start, end, file.length()));
+                response.setHeader("Content-Length", "" + length);
+                write(response, raf, start, length, false);
             }
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(data);
         }
 
-        return null;
+    }
 
+    private void write(HttpServletResponse response, RandomAccessFile raf, long start, long length, boolean all) throws IOException {
+        InputStream is = Channels.newInputStream(raf.getChannel());
+        if (all) {
+            IOUtils.copy(is, response.getOutputStream());
+        } else {
+            IOUtils.copyLarge(is, response.getOutputStream(), start, length);
+        }
     }
 }
